@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
                             rememberNode {
                                 ModelNode(
                                     modelInstance = modelLoader.createModelInstance(
-                                        assetFileLocation = "models/damaged_helmet.glb"
+                                        assetFileLocation = "models/Neck_Stretching.glb"
                                     ),
                                     scaleToUnits = 0.25f
                                 )

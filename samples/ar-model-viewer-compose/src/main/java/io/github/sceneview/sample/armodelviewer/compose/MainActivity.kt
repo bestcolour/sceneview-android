@@ -1,8 +1,12 @@
 package io.github.sceneview.sample.armodelviewer.compose
 
 import android.os.Bundle
+import android.util.Log
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +43,7 @@ import io.github.sceneview.loaders.MaterialLoader
 import io.github.sceneview.loaders.ModelLoader
 import io.github.sceneview.node.CubeNode
 import io.github.sceneview.node.ModelNode
+import io.github.sceneview.node.Node
 import io.github.sceneview.rememberCollisionSystem
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
@@ -47,21 +53,24 @@ import io.github.sceneview.rememberOnGestureListener
 import io.github.sceneview.rememberView
 import io.github.sceneview.sample.SceneviewTheme
 
-private const val kModelFile = "models/damaged_helmet.glb"
+
+private const val kModelFile = "models/Air Squat.glb"
+private const val scale = 0.01f
 
 class MainActivity : ComponentActivity() {
+
+    private var parentNode: Node? = null
+    private var modelNode: AnchorNode? = null
+    private var previousX: Float = 0f  // Track previous X position for swipe
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
             SceneviewTheme {
-                // A surface container using the 'background' color from the theme
                 Box(
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    // The destroy calls are automatically made when their disposable effect leaves
-                    // the composition or its key changes.
                     val engine = rememberEngine()
                     val modelLoader = rememberModelLoader(engine)
                     val materialLoader = rememberMaterialLoader(engine)
@@ -71,71 +80,86 @@ class MainActivity : ComponentActivity() {
                     val collisionSystem = rememberCollisionSystem(view)
 
                     var planeRenderer by remember { mutableStateOf(true) }
-
-                    var trackingFailureReason by remember {
-                        mutableStateOf<TrackingFailureReason?>(null)
-                    }
+                    var trackingFailureReason by remember { mutableStateOf<TrackingFailureReason?>(null) }
                     var frame by remember { mutableStateOf<Frame?>(null) }
+
                     ARScene(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+
+                                // Detect drag gestures for rotation
+                                detectHorizontalDragGestures { change, dragAmount ->
+                                    val deltaX = dragAmount  // Horizontal drag movement
+                                    rotateParentNode(deltaX)
+                                }
+                            },
                         childNodes = childNodes,
                         engine = engine,
                         view = view,
                         modelLoader = modelLoader,
                         collisionSystem = collisionSystem,
                         sessionConfiguration = { session, config ->
-                            config.depthMode =
-                                when (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
-                                    true -> Config.DepthMode.AUTOMATIC
-                                    else -> Config.DepthMode.DISABLED
-                                }
+                            config.depthMode = when (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
+                                true -> Config.DepthMode.AUTOMATIC
+                                else -> Config.DepthMode.DISABLED
+                            }
                             config.instantPlacementMode = Config.InstantPlacementMode.LOCAL_Y_UP
-                            config.lightEstimationMode =
-                                Config.LightEstimationMode.ENVIRONMENTAL_HDR
+                            config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
                         },
                         cameraNode = cameraNode,
                         planeRenderer = planeRenderer,
-                        onTrackingFailureChanged = {
-                            trackingFailureReason = it
-                        },
+                        onTrackingFailureChanged = { trackingFailureReason = it },
                         onSessionUpdated = { session, updatedFrame ->
                             frame = updatedFrame
-
                             if (childNodes.isEmpty()) {
                                 updatedFrame.getUpdatedPlanes()
                                     .firstOrNull { it.type == Plane.Type.HORIZONTAL_UPWARD_FACING }
-                                    ?.let { it.createAnchorOrNull(it.centerPose) }?.let { anchor ->
-                                        childNodes += createAnchorNode(
-                                            engine = engine,
-                                            modelLoader = modelLoader,
-                                            materialLoader = materialLoader,
-                                            anchor = anchor
-                                        )
+                                    ?.let { it.createAnchorOrNull(it.centerPose) }
+                                    ?.let { anchor ->
+                                        childNodes += createAnchorNode(engine, modelLoader, materialLoader, anchor)
                                     }
                             }
-                        },
+                        }
+                        ,
                         onGestureListener = rememberOnGestureListener(
                             onSingleTapConfirmed = { motionEvent, node ->
                                 if (node == null) {
                                     val hitResults = frame?.hitTest(motionEvent.x, motionEvent.y)
                                     hitResults?.firstOrNull {
-                                        it.isValid(
-                                            depthPoint = false,
-                                            point = false
-                                        )
+                                        it.isValid(depthPoint = false, point = false)
                                     }?.createAnchorOrNull()
                                         ?.let { anchor ->
                                             planeRenderer = false
-                                            childNodes += createAnchorNode(
-                                                engine = engine,
-                                                modelLoader = modelLoader,
-                                                materialLoader = materialLoader,
-                                                anchor = anchor
-                                            )
+                                            modelNode?.let {
+                                                it.parent?.removeChildNode(it)
+                                                it.anchor.detach()
+                                                modelNode = null
+                                            }
+
+                                            modelNode = createAnchorNode(engine, modelLoader, materialLoader, anchor)
+
+                                            if (parentNode != null) {
+                                                // set parent node pos to modelNode curr pos
+                                                parentNode!!.position = modelNode!!.position
+                                                // set model node parent
+                                                parentNode?.addChildNode(modelNode!!)
+                                            }
+
+//                                            modelNode?.let {
+//                                                childNodes += it
+//                                            }
                                         }
                                 }
-                            })
+                            }
+                        )
                     )
+
+                    parentNode = Node(engine = engine)
+                    parentNode?.let {
+                        childNodes += it
+                    }
+
                     Text(
                         modifier = Modifier
                             .systemBarsPadding()
@@ -145,15 +169,33 @@ class MainActivity : ComponentActivity() {
                         textAlign = TextAlign.Center,
                         fontSize = 28.sp,
                         color = Color.White,
-                        text = trackingFailureReason?.let {
-                            it.getDescription(LocalContext.current)
-                        } ?: if (childNodes.isEmpty()) {
+                        text = trackingFailureReason?.getDescription(LocalContext.current) ?: if (childNodes.isEmpty()) {
                             stringResource(R.string.point_your_phone_down)
                         } else {
                             stringResource(R.string.tap_anywhere_to_add_model)
                         }
                     )
                 }
+            }
+        }
+    }
+
+    // Function to handle rotation based on horizontal drag movement
+    private fun rotateParentNode(deltaX: Float) {
+
+        Log.d("RotateParent", "Outside")
+        parentNode?.let {
+            parentNode.apply {
+                val rotationSpeed = 0.5f  // Adjust the speed of rotation
+
+                // Update only the Y-axis rotation, keeping X and Z the same
+                it.rotation = it.rotation.copy(
+                    y = it.rotation.y + deltaX * rotationSpeed
+                )
+
+                Log.d("RotateParent", "Inside it.rotation: ${it.rotation}")
+                Log.d("RotateParent", "Inside it.childnode.size: ${it.childNodes.size}")
+
             }
         }
     }
@@ -167,11 +209,10 @@ class MainActivity : ComponentActivity() {
         val anchorNode = AnchorNode(engine = engine, anchor = anchor)
         val modelNode = ModelNode(
             modelInstance = modelLoader.createModelInstance(kModelFile),
-            // Scale to fit in a 0.5 meters cube
-            scaleToUnits = 0.5f
+            scaleToUnits = scale
         ).apply {
-            // Model Node needs to be editable for independent rotation from the anchor rotation
             isEditable = true
+            isRotationEditable = true
             editableScaleRange = 0.2f..0.75f
         }
         val boundingBoxNode = CubeNode(
