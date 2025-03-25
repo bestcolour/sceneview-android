@@ -142,8 +142,12 @@ class MainActivity : ComponentActivity() {
                                             if (parentNode != null) {
                                                 // set parent node pos to modelNode curr pos
                                                 parentNode!!.position = modelNode!!.position
+                                                Log.d("Instantiate Model Node", "parentNode.position ${parentNode!!.position} modelNode.position ${modelNode!!.position}")
+
                                                 // set model node parent
                                                 parentNode?.addChildNode(modelNode!!)
+                                                Log.d("Instantiate Model Node", "parentNode.childNodes.size=  ${parentNode!!.childNodes.size}")
+
                                             }
 
 //                                            modelNode?.let {
@@ -155,10 +159,15 @@ class MainActivity : ComponentActivity() {
                         )
                     )
 
-                    parentNode = Node(engine = engine)
-                    parentNode?.let {
-                        childNodes += it
+                    // create only once
+                    if (parentNode ==null)
+                    {
+                        parentNode = Node(engine = engine)
+                        parentNode?.let {
+                            childNodes += it
+                        }
                     }
+
 
                     Text(
                         modifier = Modifier
@@ -183,8 +192,9 @@ class MainActivity : ComponentActivity() {
     // Function to handle rotation based on horizontal drag movement
     private fun rotateParentNode(deltaX: Float) {
 
-        Log.d("RotateParent", "Outside")
         parentNode?.let {
+            Log.d("RotateParent", "Outside it.childnode.size: ${parentNode!!.childNodes.size}")
+
             parentNode.apply {
                 val rotationSpeed = 0.5f  // Adjust the speed of rotation
 
