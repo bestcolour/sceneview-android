@@ -2,11 +2,9 @@ package io.github.sceneview.sample.armodelviewer.compose
 
 import android.os.Bundle
 import android.util.Log
-import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,6 +30,7 @@ import com.google.ar.core.Config
 import com.google.ar.core.Frame
 import com.google.ar.core.Plane
 import com.google.ar.core.TrackingFailureReason
+import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.ar.ARScene
 import io.github.sceneview.ar.arcore.createAnchorOrNull
 import io.github.sceneview.ar.arcore.getUpdatedPlanes
@@ -41,6 +40,7 @@ import io.github.sceneview.ar.node.AnchorNode
 import io.github.sceneview.ar.rememberARCameraNode
 import io.github.sceneview.loaders.MaterialLoader
 import io.github.sceneview.loaders.ModelLoader
+import io.github.sceneview.math.Position
 import io.github.sceneview.node.CubeNode
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.node.Node
@@ -55,13 +55,13 @@ import io.github.sceneview.sample.SceneviewTheme
 
 
 private const val kModelFile = "models/Air Squat.glb"
-private const val scale = 0.01f
-
+private const val scale = 0.02f
+//private const val kModelOffsetScale = -0.25f
 class MainActivity : ComponentActivity() {
 
     private var parentNode: Node? = null
     private var modelNode: AnchorNode? = null
-    private var previousX: Float = 0f  // Track previous X position for swipe
+//    private var previousX: Float = 0f  // Track previous X position for swipe
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -139,16 +139,22 @@ class MainActivity : ComponentActivity() {
 
                                             modelNode = createAnchorNode(engine, modelLoader, materialLoader, anchor)
 
-                                            if (parentNode != null) {
-                                                // set parent node pos to modelNode curr pos
-                                                parentNode!!.position = modelNode!!.position
-                                                Log.d("Instantiate Model Node", "parentNode.position ${parentNode!!.position} modelNode.position ${modelNode!!.position}")
+                                            parentNode?.let {
+//                                                val v = offsetPosition(modelNode!!.position, modelNode!!.transform.forward)
+////                                                 set parent node pos to modelNode curr pos
+//                                                it.position = v
+
+
+                                                it.position = modelNode!!.position
+
+                                                Log.d("Instantiate Model Node", "parentNode.position ${it.position} modelNode.position ${modelNode!!.position}")
 
                                                 // set model node parent
-                                                parentNode?.addChildNode(modelNode!!)
-                                                Log.d("Instantiate Model Node", "parentNode.childNodes.size=  ${parentNode!!.childNodes.size}")
+                                                it.addChildNode(modelNode!!)
+                                                Log.d("Instantiate Model Node", "parentNode.childNodes.size=  ${it.childNodes.size}")
 
                                             }
+
 
 //                                            modelNode?.let {
 //                                                childNodes += it
@@ -209,6 +215,16 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+//    private  fun offsetPosition(pos:Position, forwardVector:Float3) : Float3
+//    {
+//        val offsetPosition = Float3(
+//            pos.x + forwardVector.x *kModelOffsetScale,
+//            pos.y + forwardVector.y*kModelOffsetScale,
+//            pos.z + forwardVector.z * kModelOffsetScale
+//        )
+//        return offsetPosition;
+//    }
 
     fun createAnchorNode(
         engine: Engine,
